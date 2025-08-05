@@ -1,0 +1,187 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: microservice-template
+  title: Microservice Application
+  description: Create a new microservice with deployment pipeline
+  tags:
+    - recommended
+    - microservice
+    - kubernetes
+    - ci/cd
+spec:
+  owner: platform-team
+  type: service
+  
+  parameters:
+    - title: Service Information
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Service Name
+          type: string
+          description: Name of the microservice
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+          ui:help: 'Must be lowercase letters, numbers, and hyphens only'
+        description:
+          title: Description
+          type: string
+          description: Brief description of the microservice
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the service
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+              - User
+
+    - title: Technology Stack
+      required:
+        - language
+        - framework
+      properties:
+        language:
+          title: Programming Language
+          type: string
+          description: Primary programming language
+          default: nodejs
+          enum:
+            - nodejs
+            - python
+            - java
+            - go
+            - dotnet
+          enumNames:
+            - Node.js
+            - Python
+            - Java
+            - Go
+            - .NET
+        framework:
+          title: Framework
+          type: string
+          description: Web framework to use
+          default: express
+          enum:
+            - express
+            - fastapi
+            - spring-boot
+            - gin
+            - aspnet-core
+          enumNames:
+            - Express (Node.js)
+            - FastAPI (Python)
+            - Spring Boot (Java)
+            - Gin (Go)
+            - ASP.NET Core (.NET)
+
+    - title: Deployment Configuration
+      required:
+        - environment
+        - replicas
+      properties:
+        environment:
+          title: Environment
+          type: string
+          description: Target environment
+          default: dev
+          enum:
+            - dev
+            - staging
+            - prod
+          enumNames:
+            - Development
+            - Staging
+            - Production
+        replicas:
+          title: Initial Replicas
+          type: integer
+          description: Number of initial replicas
+          default: 2
+          minimum: 1
+          maximum: 10
+        resources:
+          title: Resource Requirements
+          type: object
+          properties:
+            cpu:
+              title: CPU (millicores)
+              type: integer
+              default: 100
+              minimum: 100
+              maximum: 2000
+            memory:
+              title: Memory (MB)
+              type: integer
+              default: 256
+              minimum: 128
+              maximum: 4096
+        enableAutoscaling:
+          title: Enable Autoscaling
+          type: boolean
+          description: Enable horizontal pod autoscaling
+          default: true
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./microservice-skeleton/${{ parameters.language }}
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          language: ${{ parameters.language }}
+          framework: ${{ parameters.framework }}
+          environment: ${{ parameters.environment }}
+          replicas: ${{ parameters.replicas }}
+          resources: ${{ parameters.resources }}
+          enableAutoscaling: ${{ parameters.enableAutoscaling }}
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: ${{ parameters.description }}
+        repoUrl: github.com?owner=your-org&repo=${{ parameters.name }}
+        defaultBranch: main
+        topics:
+          - microservice
+          - ${{ parameters.language }}
+          - ${{ parameters.framework }}
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+    - id: create-webhook
+      name: Create Webhook
+      action: github:webhook
+      input:
+        repoUrl: github.com?owner=your-org&repo=${{ parameters.name }}
+        webhookUrl: https://ci-cd-system.your-domain.com/hooks/github
+        events:
+          - push
+          - pull_request
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: CI/CD Pipeline
+        url: https://ci-cd-system.your-domain.com/pipelines/${{ parameters.name }}
+        icon: github

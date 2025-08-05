@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prometheus-config-updater
+  namespace: monitoring
+  labels:
+    app: prometheus-config-updater
+    app.kubernetes.io/name: prometheus-config-updater
+    app.kubernetes.io/part-of: idp
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: prometheus-config-updater
+      containers:
+      - name: config-updater
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          # Update Prometheus configuration with Grafana Cloud credentials
+          GRAFANA_CLOUD_PROMETHEUS_URL=$(echo $GRAFANA_CLOUD_PROMETHEUS_URL_B64 | base64 -d)
+          GRAFANA_CLOUD_PROMETHEUS_USERNAME=$(echo $GRAFANA_CLOUD_PROMETHEUS_USERNAME_B64 | base64 -d)
+          GRAFANA_CLOUD_PROMETHEUS_PASSWORD=$(echo $GRAFANA_CLOUD_PROMETHEUS_PASSWORD_B64 | base64 -d)
+          
+          # Get current prometheus config
+          kubectl get configmap prometheus-config -n monitoring -o yaml > /tmp/prometheus-config.yaml
+          
+          # Replace placeholders with actual values
+          sed -i "s|\${GRAFANA_CLOUD_PROMETHEUS_URL}|$GRAFANA_CLOUD_PROMETHEUS_URL|g" /tmp/prometheus-config.yaml
+          sed -i "s|\${GRAFANA_CLOUD_PROMETHEUS_USERNAME}|$GRAFANA_CLOUD_PROMETHEUS_USERNAME|g" /tmp/prometheus-config.yaml  
+          sed -i "s|\${GRAFANA_CLOUD_PROMETHEUS_PASSWORD}|$GRAFANA_CLOUD_PROMETHEUS_PASSWORD|g" /tmp/prometheus-config.yaml
+          
+          # Apply updated config
+          kubectl apply -f /tmp/prometheus-config.yaml
+          
+          # Restart Prometheus to pick up new config
+          kubectl rollout restart deployment/prometheus -n monitoring
+        env:
+        - name: GRAFANA_CLOUD_PROMETHEUS_URL_B64
+          valueFrom:
+            secretKeyRef:
+              name: grafana-cloud-config
+              key: prometheus-url
+        - name: GRAFANA_CLOUD_PROMETHEUS_USERNAME_B64
+          valueFrom:
+            secretKeyRef:
+              name: grafana-cloud-config
+              key: prometheus-username
+        - name: GRAFANA_CLOUD_PROMETHEUS_PASSWORD_B64
+          valueFrom:
+            secretKeyRef:
+              name: grafana-cloud-config
+              key: prometheus-password
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-config-updater
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: monitoring
+  name: prometheus-config-updater
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-config-updater
+  namespace: monitoring
+subjects:
+- kind: ServiceAccount
+  name: prometheus-config-updater
+  namespace: monitoring
+roleRef:
+  kind: Role
+  name: prometheus-config-updater
+  apiGroup: rbac.authorization.k8s.io

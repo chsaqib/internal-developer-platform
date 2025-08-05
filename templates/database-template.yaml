@@ -1,0 +1,156 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: database-template
+  title: Database Service
+  description: Provision a managed PostgreSQL database
+  tags:
+    - database
+    - infrastructure
+    - crossplane
+    - aws
+    - postgresql
+spec:
+  owner: platform-team
+  type: resource
+  
+  parameters:
+    - title: Database Information
+      required:
+        - name
+        - owner
+        - environment
+      properties:
+        name:
+          title: Database Name
+          type: string
+          description: Name for the database instance
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+          ui:help: 'Must be lowercase letters, numbers, and hyphens only'
+        owner:
+          title: Owner
+          type: string
+          description: Owner of this database
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+              - User
+        environment:
+          title: Environment
+          type: string
+          description: Target environment
+          default: dev
+          enum:
+            - dev
+            - staging
+            - prod
+          enumNames:
+            - Development
+            - Staging
+            - Production
+
+    - title: Database Configuration
+      required:
+        - instanceClass
+        - storageSize
+        - region
+      properties:
+        instanceClass:
+          title: Instance Class
+          type: string
+          description: Database instance class
+          default: db.t3.micro
+          enum:
+            - db.t3.micro
+            - db.t3.small
+            - db.t3.medium
+            - db.r5.large
+          enumNames:
+            - 'Micro (1 vCPU, 1GB RAM) - Development'
+            - 'Small (2 vCPU, 2GB RAM) - Testing'
+            - 'Medium (2 vCPU, 4GB RAM) - Staging'
+            - 'Large (2 vCPU, 16GB RAM) - Production'
+        storageSize:
+          title: Storage Size (GB)
+          type: integer
+          description: Database storage size in GB
+          default: 20
+          minimum: 20
+          maximum: 1000
+          ui:widget: range
+        region:
+          title: AWS Region
+          type: string
+          description: AWS region for the database
+          default: us-west-2
+          enum:
+            - us-east-1
+            - us-west-2
+            - eu-west-1
+            - ap-southeast-1
+        multiAZ:
+          title: Multi-AZ Deployment
+          type: boolean
+          description: Enable Multi-AZ for high availability
+          default: false
+          ui:help: 'Recommended for production environments'
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./database-skeleton
+        values:
+          name: ${{ parameters.name }}
+          owner: ${{ parameters.owner }}
+          environment: ${{ parameters.environment }}
+          instanceClass: ${{ parameters.instanceClass }}
+          storageSize: ${{ parameters.storageSize }}
+          region: ${{ parameters.region }}
+          multiAZ: ${{ parameters.multiAZ }}
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: Database configuration for ${{ parameters.name }}
+        repoUrl: github.com?owner=your-org&repo=${{ parameters.name }}-database
+        defaultBranch: main
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+    - id: create-database
+      name: Create Database
+      action: crossplane:create-resource
+      input:
+        apiVersion: platform.example.com/v1alpha1
+        kind: Database
+        metadata:
+          name: ${{ parameters.name }}-${{ parameters.environment }}
+          namespace: default
+        spec:
+          region: ${{ parameters.region }}
+          instanceClass: ${{ parameters.instanceClass }}
+          storageSize: ${{ parameters.storageSize }}
+          subnetIds:
+            - subnet-12345  # This should be populated from infrastructure
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Connection Details
+        url: https://console.aws.amazon.com/rds/
+        icon: dashboard

@@ -1,0 +1,153 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: database-postgres
+  labels:
+    provider: aws
+    service: database
+    engine: postgresql
+spec:
+  compositeTypeRef:
+    apiVersion: platform.example.com/v1alpha1
+    kind: XDatabase
+  resources:
+  - name: rds-subnet-group
+    base:
+      apiVersion: rds.aws.crossplane.io/v1alpha1
+      kind: SubnetGroup
+      spec:
+        forProvider:
+          region: us-west-2
+          description: "Subnet group for RDS"
+          tags:
+            Name: database-subnet-group
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-subnet-group"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.subnetIds
+      toFieldPath: spec.forProvider.subnetIds
+  - name: rds-instance
+    base:
+      apiVersion: rds.aws.crossplane.io/v1alpha1
+      kind: RDSInstance
+      spec:
+        forProvider:
+          region: us-west-2
+          dbInstanceClass: db.t3.micro
+          engine: postgres
+          engineVersion: "13.7"
+          allocatedStorage: 20
+          storageType: gp2
+          storageEncrypted: true
+          multiAz: false
+          publiclyAccessible: false
+          autoMinorVersionUpgrade: true
+          deletionProtection: false
+          skipFinalSnapshot: true
+          tags:
+            Name: application-database
+        writeConnectionSecretsToNamespace: crossplane-system
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-postgres"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.instanceClass
+      toFieldPath: spec.forProvider.dbInstanceClass
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.storageSize
+      toFieldPath: spec.forProvider.allocatedStorage
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.dbSubnetGroupNameRef.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-subnet-group"
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.writeConnectionSecretsToNamespace
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.writeConnectionSecretToRef.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-postgres-conn"
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.endpoint
+      toFieldPath: status.endpoint
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.address
+      toFieldPath: status.address
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xdatabases.platform.example.com
+spec:
+  group: platform.example.com
+  names:
+    kind: XDatabase
+    plural: xdatabases
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              region:
+                type: string
+                description: AWS region for the database
+                default: "us-west-2"
+              instanceClass:
+                type: string
+                description: RDS instance class
+                enum: ["db.t3.micro", "db.t3.small", "db.t3.medium", "db.r5.large"]
+                default: "db.t3.micro"
+              storageSize:
+                type: integer
+                description: Storage size in GB
+                minimum: 20
+                maximum: 1000
+                default: 20
+              subnetIds:
+                type: array
+                description: Subnet IDs for the database
+                items:
+                  type: string
+            required:
+            - subnetIds
+          status:
+            type: object
+            properties:
+              endpoint:
+                type: string
+                description: Database endpoint
+              address:
+                type: string
+                description: Database address
+  claimNames:
+    kind: Database
+    plural: databases

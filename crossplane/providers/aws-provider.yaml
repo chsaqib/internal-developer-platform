@@ -1,0 +1,27 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-ec2
+spec:
+  package: crossplane/provider-aws-ec2:v0.39.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-s3
+spec:
+  package: crossplane/provider-aws-s3:v0.39.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-iam
+spec:
+  package: crossplane/provider-aws-iam:v0.39.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-rds
+spec:
+  package: crossplane/provider-aws-rds:v0.39.0

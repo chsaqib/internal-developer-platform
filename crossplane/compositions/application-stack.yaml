@@ -1,0 +1,234 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: application-stack
+  labels:
+    provider: aws
+    service: application
+spec:
+  compositeTypeRef:
+    apiVersion: platform.example.com/v1alpha1
+    kind: XApplicationStack
+  resources:
+  - name: vpc
+    base:
+      apiVersion: ec2.aws.crossplane.io/v1beta1
+      kind: VPC
+      spec:
+        forProvider:
+          region: us-west-2
+          cidrBlock: 10.0.0.0/16
+          enableDnsHostnames: true
+          enableDnsSupport: true
+          tags:
+            Name: application-vpc
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-vpc"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.tags.Name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-vpc"
+  - name: subnet-public-1
+    base:
+      apiVersion: ec2.aws.crossplane.io/v1beta1
+      kind: Subnet
+      spec:
+        forProvider:
+          region: us-west-2
+          availabilityZone: us-west-2a
+          cidrBlock: 10.0.1.0/24
+          mapPublicIpOnLaunch: true
+          tags:
+            Name: public-subnet-1
+            Type: public
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-subnet-public-1"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.availabilityZone
+      transforms:
+      - type: string
+        string:
+          fmt: "%sa"
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.vpcIdRef.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-vpc"
+  - name: subnet-private-1
+    base:
+      apiVersion: ec2.aws.crossplane.io/v1beta1
+      kind: Subnet
+      spec:
+        forProvider:
+          region: us-west-2
+          availabilityZone: us-west-2a
+          cidrBlock: 10.0.10.0/24
+          tags:
+            Name: private-subnet-1
+            Type: private
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-subnet-private-1"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.availabilityZone
+      transforms:
+      - type: string
+        string:
+          fmt: "%sa"
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.vpcIdRef.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-vpc"
+  - name: internet-gateway
+    base:
+      apiVersion: ec2.aws.crossplane.io/v1beta1
+      kind: InternetGateway
+      spec:
+        forProvider:
+          region: us-west-2
+          tags:
+            Name: internet-gateway
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-igw"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.vpcIdRef.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-vpc"
+  - name: route-table
+    base:
+      apiVersion: ec2.aws.crossplane.io/v1beta1
+      kind: RouteTable
+      spec:
+        forProvider:
+          region: us-west-2
+          tags:
+            Name: public-route-table
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-rt"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: spec.forProvider.vpcIdRef.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-vpc"
+  - name: s3-bucket
+    base:
+      apiVersion: s3.aws.crossplane.io/v1beta1
+      kind: Bucket
+      spec:
+        forProvider:
+          region: us-west-2
+        deletionPolicy: Delete
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: metadata.name
+      toFieldPath: metadata.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-bucket"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.region
+      toFieldPath: spec.forProvider.region
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xapplicationstacks.platform.example.com
+spec:
+  group: platform.example.com
+  names:
+    kind: XApplicationStack
+    plural: xapplicationstacks
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              region:
+                type: string
+                description: AWS region for the application stack
+                default: "us-west-2"
+              environment:
+                type: string
+                description: Environment (dev, staging, prod)
+                enum: ["dev", "staging", "prod"]
+                default: "dev"
+            required:
+            - environment
+          status:
+            type: object
+            properties:
+              vpcId:
+                type: string
+                description: VPC ID of the created infrastructure
+              bucketName:
+                type: string
+                description: Name of the S3 bucket
+  claimNames:
+    kind: ApplicationStack
+    plural: applicationstacks

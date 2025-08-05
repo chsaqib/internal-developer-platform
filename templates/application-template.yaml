@@ -1,0 +1,138 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: application-template
+  title: Application Infrastructure
+  description: Create a new application with complete infrastructure stack
+  tags:
+    - recommended
+    - infrastructure
+    - crossplane
+    - aws
+spec:
+  owner: platform-team
+  type: service
+  
+  parameters:
+    - title: Application Information
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name for your application
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+          ui:help: 'Must be lowercase letters, numbers, and hyphens only'
+        description:
+          title: Description
+          type: string
+          description: Brief description of the application
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the application
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+              - User
+
+    - title: Infrastructure Configuration
+      required:
+        - environment
+        - region
+      properties:
+        environment:
+          title: Environment
+          type: string
+          description: Target environment for deployment
+          default: dev
+          enum:
+            - dev
+            - staging
+            - prod
+          enumNames:
+            - Development
+            - Staging
+            - Production
+        region:
+          title: AWS Region
+          type: string
+          description: AWS region for resource deployment
+          default: us-west-2
+          enum:
+            - us-east-1
+            - us-west-2
+            - eu-west-1
+            - ap-southeast-1
+        database:
+          title: Include Database
+          type: boolean
+          description: Whether to provision a PostgreSQL database
+          default: true
+        storageSize:
+          title: Database Storage (GB)
+          type: integer
+          description: Database storage size in GB
+          default: 20
+          minimum: 20
+          maximum: 1000
+          ui:widget: range
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          environment: ${{ parameters.environment }}
+          region: ${{ parameters.region }}
+          database: ${{ parameters.database }}
+          storageSize: ${{ parameters.storageSize }}
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: This is ${{ parameters.name }}
+        repoUrl: github.com?owner=your-org&repo=${{ parameters.name }}
+        defaultBranch: main
+        repoVariables:
+          environment: ${{ parameters.environment }}
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+    - id: create-infrastructure
+      name: Create Infrastructure
+      action: crossplane:create-resource
+      input:
+        apiVersion: platform.example.com/v1alpha1
+        kind: ApplicationStack
+        metadata:
+          name: ${{ parameters.name }}-${{ parameters.environment }}
+          namespace: default
+        spec:
+          environment: ${{ parameters.environment }}
+          region: ${{ parameters.region }}
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

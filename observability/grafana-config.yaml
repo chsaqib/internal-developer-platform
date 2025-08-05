@@ -1,0 +1,220 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-cloud-dashboards
+  namespace: monitoring
+  labels:
+    app: grafana-cloud
+    app.kubernetes.io/name: grafana-cloud
+    app.kubernetes.io/part-of: idp
+data:
+  idp-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "uid": "idp-overview",
+        "title": "Internal Developer Platform Overview",
+        "description": "Overview of IDP components and health",
+        "tags": ["idp", "platform", "overview", "backstage", "crossplane", "flux"],
+        "style": "dark",
+        "timezone": "browser",
+        "editable": true,
+        "graphTooltip": 1,
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "timepicker": {
+          "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+        },
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Platform Components Status",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+            "targets": [
+              {
+                "expr": "up{job=~\"backstage|crossplane|flux.*\"}",
+                "legendFormat": "{{job}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": 0},
+                    {"color": "green", "value": 1}
+                  ]
+                },
+                "unit": "none",
+                "displayName": "${__field.labels.job}"
+              }
+            },
+            "options": {
+              "reduceOptions": {
+                "values": false,
+                "calcs": ["lastNotNull"],
+                "fields": ""
+              },
+              "orientation": "auto",
+              "textMode": "auto",
+              "colorMode": "background"
+            }
+          },
+          {
+            "id": 2,
+            "title": "Backstage API Requests",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "targets": [
+              {
+                "expr": "rate(http_requests_total{job=\"backstage\"}[5m])",
+                "legendFormat": "{{method}} {{route}}",
+                "refId": "A"
+              }
+            ],
+            "yAxes": [
+              {"label": "Requests/sec", "min": 0},
+              {"show": false}
+            ],
+            "xAxis": {"show": true},
+            "lines": true,
+            "fill": 1,
+            "linewidth": 2,
+            "pointradius": 2
+          },
+          {
+            "id": 3,
+            "title": "Crossplane Managed Resources",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "targets": [
+              {
+                "expr": "crossplane_managed_resources_total",
+                "legendFormat": "Total Managed Resources",
+                "refId": "A"
+              },
+              {
+                "expr": "crossplane_managed_resources{state=\"Ready\"}",
+                "legendFormat": "Ready Resources",
+                "refId": "B"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {"mode": "palette-classic"},
+                "unit": "none"
+              }
+            }
+          },
+          {
+            "id": 4,
+            "title": "Flux Reconciliation Success Rate",
+            "type": "stat",
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+            "targets": [
+              {
+                "expr": "(sum(rate(gotk_reconcile_condition{type=\"Ready\",status=\"True\"}[5m])) / sum(rate(gotk_reconcile_condition{type=\"Ready\"}[5m]))) * 100",
+                "legendFormat": "Success Rate %",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": 0},
+                    {"color": "yellow", "value": 80},
+                    {"color": "green", "value": 95}
+                  ]
+                },
+                "unit": "percent",
+                "min": 0,
+                "max": 100
+              }
+            }
+          },
+          {
+            "id": 5,
+            "title": "Pod Resource Usage",
+            "type": "graph",
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+            "targets": [
+              {
+                "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"backstage|crossplane-system|flux-system|monitoring\"}[5m])) by (namespace)",
+                "legendFormat": "CPU - {{namespace}}",
+                "refId": "A"
+              },
+              {
+                "expr": "sum(container_memory_usage_bytes{namespace=~\"backstage|crossplane-system|flux-system|monitoring\"}) by (namespace) / 1024 / 1024",
+                "legendFormat": "Memory MB - {{namespace}}",
+                "refId": "B"
+              }
+            ],
+            "yAxes": [
+              {"label": "CPU cores / Memory MB", "min": 0},
+              {"show": false}
+            ],
+            "seriesOverrides": [
+              {
+                "alias": "/Memory.*/",
+                "yAxis": 2
+              }
+            ]
+          }
+        ]
+      }
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grafana-cloud-dashboard-provisioner
+  namespace: monitoring
+  labels:
+    app: grafana-cloud
+    app.kubernetes.io/name: grafana-cloud
+    app.kubernetes.io/part-of: idp
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: dashboard-provisioner
+        image: curlimages/curl:latest
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          # Create dashboard in Grafana Cloud
+          GRAFANA_URL=$(echo $GRAFANA_CLOUD_URL | base64 -d)
+          API_KEY=$(echo $GRAFANA_CLOUD_API_KEY | base64 -d)
+          
+          curl -X POST \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @/dashboards/idp-overview.json \
+            "$GRAFANA_URL/api/dashboards/db"
+        env:
+        - name: GRAFANA_CLOUD_URL
+          valueFrom:
+            secretKeyRef:
+              name: grafana-cloud-config
+              key: url
+        - name: GRAFANA_CLOUD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: grafana-cloud-config
+              key: api-key
+        volumeMounts:
+        - name: dashboards
+          mountPath: /dashboards
+      volumes:
+      - name: dashboards
+        configMap:
+          name: grafana-cloud-dashboards

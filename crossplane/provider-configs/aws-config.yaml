@@ -1,0 +1,26 @@
+apiVersion: aws.crossplane.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: aws-secret
+      key: creds
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-secret
+  namespace: crossplane-system
+type: Opaque
+data:
+  # Create this secret with your AWS credentials
+  # kubectl create secret generic aws-secret -n crossplane-system --from-file=creds=./aws-credentials.txt
+  # where aws-credentials.txt contains:
+  # [default]
+  # aws_access_key_id = YOUR_ACCESS_KEY
+  # aws_secret_access_key = YOUR_SECRET_KEY
+  creds: ""

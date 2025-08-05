@@ -1,0 +1,23 @@
+# Grafana Cloud Integration
+# This file configures the integration with Grafana Cloud instead of deploying Grafana locally
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-cloud-config
+  namespace: monitoring
+  labels:
+    app: grafana-cloud
+    app.kubernetes.io/name: grafana-cloud
+    app.kubernetes.io/part-of: idp
+type: Opaque
+data:
+  # Base64 encoded values - replace with your actual Grafana Cloud credentials
+  # To encode: echo -n "your-value" | base64
+  url: ""              # Your Grafana Cloud instance URL (e.g., https://your-org.grafana.net)
+  api-key: ""          # Your Grafana Cloud API key
+  username: ""         # Your Grafana Cloud username (for Prometheus remote write)
+  password: ""         # Your Grafana Cloud password (for Prometheus remote write)
+  prometheus-url: ""   # Your Grafana Cloud Prometheus endpoint
+  prometheus-username: "" # Your Grafana Cloud Prometheus username
+  prometheus-password: "" # Your Grafana Cloud Prometheus password

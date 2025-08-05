@@ -1,0 +1,209 @@
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: internal-developer-platform
+  title: Internal Developer Platform
+  description: A comprehensive IDP built with Backstage, Crossplane, and Flux CD
+  tags:
+    - platform
+    - idp
+    - backstage
+    - crossplane
+    - flux
+    - gitops
+    - infrastructure
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/techdocs-ref: dir:.
+spec:
+  owner: platform-team
+  domain: platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: backstage-portal
+  title: Backstage Developer Portal
+  description: The main developer portal interface
+  tags:
+    - backstage
+    - portal
+    - ui
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/kubernetes-id: backstage
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  providesApis:
+    - backstage-api
+  dependsOn:
+    - component:postgres-database
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: crossplane
+  title: Crossplane Infrastructure Controller
+  description: Manages cloud infrastructure as Kubernetes resources
+  tags:
+    - crossplane
+    - infrastructure
+    - iac
+    - kubernetes
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/kubernetes-id: crossplane
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: flux-cd
+  title: Flux CD GitOps Controller
+  description: Manages GitOps continuous delivery workflows
+  tags:
+    - flux
+    - gitops
+    - cd
+    - kubernetes
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/kubernetes-id: flux-system
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: postgres-database
+  title: PostgreSQL Database
+  description: Database for Backstage catalog and user data
+  tags:
+    - database
+    - postgres
+    - storage
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/kubernetes-id: postgres
+spec:
+  type: database
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: grafana
+  title: Grafana Observability Dashboard
+  description: Monitoring and observability dashboards
+  tags:
+    - grafana
+    - monitoring
+    - observability
+    - metrics
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/kubernetes-id: grafana
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  dependsOn:
+    - component:prometheus
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: prometheus
+  title: Prometheus Metrics Server
+  description: Metrics collection and storage
+  tags:
+    - prometheus
+    - metrics
+    - monitoring
+    - tsdb
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+    backstage.io/kubernetes-id: prometheus
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: backstage-api
+  title: Backstage Backend API
+  description: REST API for Backstage services
+  tags:
+    - api
+    - rest
+    - backstage
+  annotations:
+    github.com/project-slug: your-org/idp-platform
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: internal-developer-platform
+  definition: |
+    openapi: 3.0.0
+    info:
+      title: Backstage API
+      version: 1.0.0
+      description: REST API for Backstage platform services
+    servers:
+      - url: http://localhost:7007
+        description: Local development server
+    paths:
+      /api/catalog/entities:
+        get:
+          summary: Get catalog entities
+          description: Retrieve all entities from the software catalog
+          responses:
+            '200':
+              description: List of catalog entities
+      /api/techdocs:
+        get:
+          summary: Get technical documentation
+          description: Retrieve technical documentation
+          responses:
+            '200':
+              description: Documentation content
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-team
+  title: Platform Engineering Team
+  description: Team responsible for maintaining the Internal Developer Platform
+spec:
+  type: team
+  profile:
+    displayName: Platform Engineering Team
+    email: platform@your-org.com
+    picture: https://avatars.githubusercontent.com/platform-team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: platform
+  title: Platform Domain
+  description: Platform engineering and infrastructure domain
+spec:
+  owner: platform-team
