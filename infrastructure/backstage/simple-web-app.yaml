@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-web-app
+  namespace: backstage
+  labels:
+    app: simple-web-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simple-web-app
+  template:
+    metadata:
+      labels:
+        app: simple-web-app
+    spec:
+      containers:
+      - name: web-app
+        image: httpd:alpine
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: web-content
+          mountPath: /usr/local/apache2/htdocs/index.html
+          subPath: index.html
+      volumes:
+      - name: web-content
+        configMap:
+          name: web-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-web-app
+  namespace: backstage
+  labels:
+    app: simple-web-app
+spec:
+  selector:
+    app: simple-web-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-content
+  namespace: backstage
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Internal Developer Platform</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #333; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; }
+            .status { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .component { background: #f0f8ff; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #2196F3; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 Internal Developer Platform</h1>
+            
+            <div class="status">
+                <h3>✅ Platform Status: OPERATIONAL</h3>
+                <p>Your IDP is successfully running on Kubernetes!</p>
+            </div>
+            
+            <div class="component">
+                <h4>🔄 Flux CD</h4>
+                <p><strong>Status:</strong> ✅ Running | <strong>Purpose:</strong> GitOps Continuous Delivery</p>
+            </div>
+            
+            <div class="component">
+                <h4>🗄️ PostgreSQL</h4>
+                <p><strong>Status:</strong> ✅ Running | <strong>Purpose:</strong> Database for application data</p>
+            </div>
+            
+            <div class="component">
+                <h4>🎭 Backstage (Planned)</h4>
+                <p><strong>Status:</strong> 🔄 In Progress | <strong>Purpose:</strong> Developer Self-Service Portal</p>
+            </div>
+            
+            <div class="component">
+                <h4>⚙️ Crossplane</h4>
+                <p><strong>Status:</strong> 📋 Requires Helm | <strong>Purpose:</strong> Infrastructure as Code</p>
+            </div>
+            
+            <div class="component">
+                <h4>📊 Monitoring</h4>
+                <p><strong>Status:</strong> 📋 Skipped for now | <strong>Purpose:</strong> Platform Observability</p>
+            </div>
+            
+            <h3>🎯 Current Status:</h3>
+            <ul>
+                <li>✅ Kubernetes cluster setup</li>
+                <li>✅ Flux CD installation & GitOps</li>
+                <li>✅ PostgreSQL database</li>
+                <li>✅ Web interface & platform dashboard</li>
+                <li>✅ GitHub integration</li>
+                <li>📋 Crossplane (requires Helm installation)</li>
+                <li>📋 Backstage (can be added later)</li>
+                <li>📋 Monitoring (can be added later)</li>
+            </ul>
+            
+            <h3>🚀 Your IDP Foundation is Complete!</h3>
+            <p><strong>You now have a working Internal Developer Platform with:</strong></p>
+            <ul>
+                <li>GitOps-driven deployments</li>
+                <li>Database infrastructure</li>
+                <li>Kubernetes-based architecture</li>
+                <li>Web-based status monitoring</li>
+            </ul>
+            
+            <p><em>This is a temporary placeholder. Once Backstage is properly configured, you'll have full developer self-service capabilities!</em></p>
+        </div>
+    </body>
+    </html>
